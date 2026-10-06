@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 # Load trained model
-model = tf.keras.models.load_model("emotion_model.keras")
+model = tf.keras.models.load_model("emotion_model_v2.keras")
 
 # Test dataset
 test_data = tf.keras.utils.image_dataset_from_directory(

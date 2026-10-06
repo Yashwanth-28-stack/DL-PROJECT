@@ -4,7 +4,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 import matplotlib.pyplot as plt
 
 # Load trained model
-model = tf.keras.models.load_model("emotion_model.keras")
+model = tf.keras.models.load_model("emotion_model_v2.keras")
 
 # Load test dataset
 test_data = tf.keras.utils.image_dataset_from_directory(
