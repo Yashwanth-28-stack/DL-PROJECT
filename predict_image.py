@@ -7,7 +7,7 @@ import tensorflow as tf
 model = tf.keras.models.load_model("emotion_model.keras")
 
 # Image path
-image_path = r"C:\Users\moldi\OneDrive\Pictures\Saved Pictures\123.png"
+image_path = r"C:\Users\moldi\OneDrive\Pictures\Saved Pictures\abcd.png"
 
 # Emotion classes
 class_names = [
