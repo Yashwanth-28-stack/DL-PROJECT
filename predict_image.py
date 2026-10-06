@@ -4,10 +4,10 @@ import numpy as np
 import tensorflow as tf
 
 # Load trained model
-model = tf.keras.models.load_model("emotion_model.keras")
+model = tf.keras.models.load_model("emotion_model_v2.keras")
 
 # Image path
-image_path = r"C:\Users\moldi\OneDrive\Pictures\Saved Pictures\abcd.png"
+image_path = r"C:\Users\moldi\OneDrive\Pictures\Saved Pictures\gettyimages-2203365680-612x612.jpg"
 
 # Emotion classes
 class_names = [
