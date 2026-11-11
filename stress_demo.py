@@ -27,6 +27,18 @@ LEVELS = {
     "fear": "High",
 }
 
+# OpenCV uses BGR colors.
+EMOTION_COLORS = {
+    "angry": (70, 70, 240),       # red
+    "disgust": (190, 80, 190),    # purple
+    "fear": (0, 145, 255),        # orange
+    "happy": (0, 220, 255),       # yellow
+    "neutral": (220, 180, 100),   # light blue
+    "sad": (50, 60, 255),         # red
+    "surprise": (100, 220, 100),  # green
+}
+UNCERTAIN_COLOR = (150, 160, 170)
+
 
 def send_email_alert(emotion, confidence):
     message = EmailMessage()
@@ -47,6 +59,64 @@ def send_email_alert(emotion, confidence):
             os.environ["GMAIL_APP_PASSWORD"]
         )
         server.send_message(message)
+
+
+def draw_confidence_panel(frame, label, confidence, color):
+    height, width = frame.shape[:2]
+    panel_x, panel_y = 15, 55
+    panel_width = min(350, width - 30)
+    panel_height = 112
+
+    if panel_width < 180 or height < panel_y + panel_height:
+        return frame
+
+    # Translucent dark panel.
+    overlay = frame.copy()
+    cv2.rectangle(
+        overlay,
+        (panel_x, panel_y),
+        (panel_x + panel_width, panel_y + panel_height),
+        (18, 26, 38),
+        -1
+    )
+    frame = cv2.addWeighted(overlay, 0.82, frame, 0.18, 0)
+
+    cv2.putText(
+        frame, "LIVE EMOTION", (panel_x + 15, panel_y + 25),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (190, 205, 220), 1, cv2.LINE_AA
+    )
+    cv2.putText(
+        frame, label, (panel_x + 15, panel_y + 56),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.72, color, 2, cv2.LINE_AA
+    )
+
+    confidence_text = f"{confidence:.0%}"
+    text_size = cv2.getTextSize(
+        confidence_text, cv2.FONT_HERSHEY_SIMPLEX, 0.68, 2
+    )[0]
+    cv2.putText(
+        frame, confidence_text,
+        (panel_x + panel_width - 15 - text_size[0], panel_y + 56),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.68, (245, 248, 252), 2, cv2.LINE_AA
+    )
+
+    bar_x = panel_x + 15
+    bar_y = panel_y + 78
+    bar_width = panel_width - 30
+    bar_height = 18
+    cv2.rectangle(
+        frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height),
+        (65, 76, 91), -1
+    )
+
+    fill_width = int(bar_width * min(max(confidence, 0.0), 1.0))
+    if fill_width > 0:
+        cv2.rectangle(
+            frame, (bar_x, bar_y), (bar_x + fill_width, bar_y + bar_height),
+            color, -1
+        )
+
+    return frame
 
 
 def main():
@@ -90,6 +160,9 @@ def main():
 
             frame = cv2.flip(frame, 1)
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            live_label = "No face detected"
+            live_confidence = 0.0
+            live_color = UNCERTAIN_COLOR
 
             faces = detector.detectMultiScale(
                 gray,
@@ -107,26 +180,38 @@ def main():
                 index = int(np.argmax(probabilities))
                 emotion = CLASSES[index]
                 confidence = float(probabilities[index])
+                emotion_color = EMOTION_COLORS[emotion]
 
                 if confidence >= MIN_CONFIDENCE:
                     votes[emotion] += 1
                     confidences.setdefault(emotion, []).append(confidence)
-                    label = f"{emotion}: {confidence:.0%}"
+                    live_label = emotion.title()
+                    live_color = emotion_color
+                    face_label = f"{emotion}: {confidence:.0%}"
                 else:
-                    label = "Uncertain"
+                    live_label = f"Uncertain ({emotion})"
+                    live_color = UNCERTAIN_COLOR
+                    face_label = f"Uncertain: {confidence:.0%}"
+
+                live_confidence = confidence
 
                 cv2.rectangle(
-                    frame, (x, y), (x + w, y + h), (0, 220, 0), 2
+                    frame, (x, y), (x + w, y + h), emotion_color, 2
                 )
                 cv2.putText(
                     frame,
-                    label,
+                    face_label,
                     (x, max(y - 10, 25)),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.65,
-                    (0, 220, 0),
-                    2
+                    emotion_color,
+                    2,
+                    cv2.LINE_AA
                 )
+
+            frame = draw_confidence_panel(
+                frame, live_label, live_confidence, live_color
+            )
 
             remaining = max(0, SECONDS - int(time.time() - start))
             cv2.putText(
