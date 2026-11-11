@@ -119,6 +119,82 @@ def draw_confidence_panel(frame, label, confidence, color):
     return frame
 
 
+
+def show_lime_explanation(model, face_gray, probabilities):
+    try:
+        from lime import lime_image
+    except ImportError:
+        print("LIME is not installed. Run: pip install lime scikit-image")
+        return
+
+    # LIME expects a three-channel image; the CNN itself was trained on grayscale.
+    image = np.repeat(face_gray[..., :1], 3, axis=2)
+
+    def predict_batch(rgb_images):
+        grayscale = np.asarray(rgb_images, dtype=np.float32)[..., :1]
+        grayscale = np.clip(grayscale, 0.0, 1.0)
+        return model.predict(grayscale, verbose=0)
+
+    print("Creating LIME explanation...")
+    try:
+        explainer = lime_image.LimeImageExplainer()
+        explanation = explainer.explain_instance(
+            image,
+            predict_batch,
+            top_labels=1,
+            hide_color=0,
+            num_samples=300,
+            batch_size=32
+        )
+    except Exception as error:
+        print("Could not create LIME explanation:", error)
+        return
+
+    label = int(explanation.top_labels[0])
+    _, mask = explanation.get_image_and_mask(
+        label,
+        num_features=6,
+        positive_only=False,
+        hide_rest=False
+    )
+
+    # Green areas support the prediction; red areas count against it.
+    visual = image.copy()
+    positive = mask > 0
+    negative = mask < 0
+    visual[positive] = 0.45 * visual[positive] + 0.55 * np.array([0.0, 1.0, 0.0])
+    visual[negative] = 0.45 * visual[negative] + 0.55 * np.array([1.0, 0.0, 0.0])
+
+    visual = (np.clip(visual, 0.0, 1.0) * 255).astype(np.uint8)
+    visual = cv2.resize(visual, (384, 384), interpolation=cv2.INTER_NEAREST)
+    visual = cv2.cvtColor(visual, cv2.COLOR_RGB2BGR)
+    confidence = float(probabilities[label])
+
+    cv2.putText(
+        visual,
+        f"LIME: {CLASSES[label]} ({confidence:.0%})",
+        (12, 28),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+    cv2.putText(
+        visual,
+        "Green: supports | Red: opposes",
+        (12, 365),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+    cv2.imshow("LIME explanation", visual)
+    cv2.waitKey(0)
+    cv2.destroyWindow("LIME explanation")
+
+
 def main():
     for variable in ("GMAIL_ADDRESS", "GMAIL_APP_PASSWORD", "ALERT_TO"):
         if not os.environ.get(variable):
@@ -147,6 +223,8 @@ def main():
 
     votes = Counter()
     confidences = {}
+    last_face = None
+    last_probabilities = None
     start = time.time()
 
     print(f"Webcam session: {SECONDS} seconds. Press Q to cancel.")
@@ -177,6 +255,8 @@ def main():
                 face = face.astype("float32")[None, ..., None] / 255.0
 
                 probabilities = model.predict(face, verbose=0)[0]
+                last_face = face[0].copy()
+                last_probabilities = probabilities.copy()
                 index = int(np.argmax(probabilities))
                 emotion = CLASSES[index]
                 confidence = float(probabilities[index])
@@ -216,7 +296,7 @@ def main():
             remaining = max(0, SECONDS - int(time.time() - start))
             cv2.putText(
                 frame,
-                f"{remaining}s | Q to quit",
+                f"{remaining}s | E: explain | Q: quit",
                 (15, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.65,
@@ -225,9 +305,15 @@ def main():
             )
             cv2.imshow("Emotion demo", frame)
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
                 print("Cancelled; no email sent.")
                 return
+            if key in (ord("e"), ord("E")):
+                if last_face is None:
+                    print("No face prediction available for LIME yet.")
+                else:
+                    show_lime_explanation(model, last_face, last_probabilities)
 
     finally:
         camera.release()
