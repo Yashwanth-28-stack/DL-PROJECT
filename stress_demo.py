@@ -190,7 +190,7 @@ def main():
                     face_label = f"{emotion}: {confidence:.0%}"
                 else:
                     live_label = f"Uncertain ({emotion})"
-                    live_color = UNCERTAIN_COLOR
+                    live_color = emotion_color
                     face_label = f"Uncertain: {confidence:.0%}"
 
                 live_confidence = confidence
