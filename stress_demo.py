@@ -166,7 +166,7 @@ def show_lime_explanation(model, face_gray, probabilities):
     visual[negative] = 0.45 * visual[negative] + 0.55 * np.array([1.0, 0.0, 0.0])
 
     visual = (np.clip(visual, 0.0, 1.0) * 255).astype(np.uint8)
-    visual = cv2.resize(visual, (384, 384), interpolation=cv2.INTER_NEAREST)
+    visual = cv2.resize(visual, (460, 460), interpolation=cv2.INTER_NEAREST)
     visual = cv2.cvtColor(visual, cv2.COLOR_RGB2BGR)
     confidence = float(probabilities[label])
 
@@ -183,9 +183,19 @@ def show_lime_explanation(model, face_gray, probabilities):
     cv2.putText(
         visual,
         "Green: supports | Red: opposes",
-        (12, 365),
+        (12, 405),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.55,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA
+    )
+    cv2.putText(
+        visual,
+        "Press any key to resume webcam",
+        (12, 438),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
         (255, 255, 255),
         2,
         cv2.LINE_AA
@@ -227,7 +237,7 @@ def main():
     last_probabilities = None
     start = time.time()
 
-    print(f"Webcam session: {SECONDS} seconds. Press Q to cancel.")
+    print(f"Webcam session: {SECONDS} seconds. Press E to explain or Q to cancel.")
 
     try:
         while time.time() - start < SECONDS:
@@ -310,10 +320,13 @@ def main():
                 print("Cancelled; no email sent.")
                 return
             if key in (ord("e"), ord("E")):
+                lime_started = time.time()
                 if last_face is None:
                     print("No face prediction available for LIME yet.")
                 else:
                     show_lime_explanation(model, last_face, last_probabilities)
+                # Do not count LIME computation or viewing time against the webcam session.
+                start += time.time() - lime_started
 
     finally:
         camera.release()
